@@ -30,6 +30,22 @@ void blur_task(void *pic) {
   blur_picture((struct picture *) pic);
 }
 
+/* 0 - Purely sequential blur without using any pthread functionality */
+
+void threadless_blur(struct picture *pic) {
+  clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+
+  blur_picture(pic);
+
+  save_picture_to_file(pic, "blurtest/threadless.jpg");
+
+  clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+  uint64_t delta_us = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000;
+  printf("0. Threadless Blur Elapsed Time: %ld\n\n", delta_us);
+} 
+
+/* 1 - Sequential blur using only 1 thread in the threadpool */
+
 void sequential_blur(struct picture *pic) {
   clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
@@ -46,15 +62,85 @@ void sequential_blur(struct picture *pic) {
 
   clock_gettime(CLOCK_MONOTONIC_RAW, &end);
   uint64_t delta_us = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000;
-  printf("1. Sequential Blur Elapsed Time: %ld\n", delta_us);
+  printf("1. Sequential Blur Elapsed Time: %ld\n\n", delta_us);
 }
 
+// Arguments struct for row_by_row_blur and col_by_col_blur
 struct pic_args {
   struct picture *tmp;
   struct picture *pic;
   int index;
-  // pthread_mutex_t *lock;
 };
+
+/* 2 - Row by row parallel blur */
+
+void row_by_row_task(void *pic_args) {
+  struct pic_args *temp_pic_args = (struct pic_args *) pic_args;
+  struct picture *tmp = temp_pic_args->tmp;
+  struct picture *pic = temp_pic_args->pic;
+  int j = temp_pic_args->index;
+
+  // printf("Started thread for index %d\n", i);
+
+  for(int i = 1 ; i < tmp->width - 1; i++){
+      
+    struct pixel rgb;  
+    int sum_red = 0;
+    int sum_green = 0;
+    int sum_blue = 0;
+  
+    for(int n = -1; n <= 1; n++){
+      for(int m = -1; m <= 1; m++){
+        rgb = get_pixel(tmp, i+n, j+m);
+        sum_red += rgb.red;
+        sum_green += rgb.green;
+        sum_blue += rgb.blue;
+      }
+    }
+  
+    rgb.red = sum_red / BLUR_REGION_SIZE;
+    rgb.green = sum_green / BLUR_REGION_SIZE;
+    rgb.blue = sum_blue / BLUR_REGION_SIZE;
+
+    set_pixel(pic, i, j, &rgb);
+  }
+
+  free(pic_args);
+}
+
+void row_by_row_blur(struct picture *pic) {
+  clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+
+  puts("Making threadpool with 1 threads");
+  threadpool thpool = thpool_init(NO_THREADS);
+
+  // Split picture into a list of processes
+  struct picture tmp;
+  tmp.img = copy_image(pic->img);
+  tmp.width = pic->width;
+  tmp.height = pic->height;  
+
+  // Iterates over the columns of the image
+  for(int j = 1 ; j < tmp.height - 1; j++){
+    struct pic_args *pic_args2 = malloc(sizeof (struct pic_args));
+    pic_args2->tmp = &tmp;
+    pic_args2->pic = pic;
+    pic_args2->index = j;
+    thpool_add_work(thpool, row_by_row_task, (void*)(uintptr_t) pic_args2);
+  }
+
+  thpool_wait(thpool);
+  puts("Killing threadpool");
+  thpool_destroy(thpool);
+
+  clear_picture(&tmp);
+
+  save_picture_to_file(pic, "blurtest/row_by_row.jpg");
+
+  clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+  uint64_t delta_us = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000;
+  printf("2. Row-by-row Blur Elapsed Time: %ld\n\n", delta_us);
+}
 
 /* 3 - Column by column parallel blur */
 
@@ -63,9 +149,8 @@ void col_by_col_task(void *pic_args) {
   struct picture *tmp = temp_pic_args->tmp;
   struct picture *pic = temp_pic_args->pic;
   int i = temp_pic_args->index;
-  // pthread_mutex_t *lock = temp_pic_args->lock;
 
-  printf("Started thread for index %d\n", i);
+  // printf("Started thread for index %d\n", i);
 
   for(int j = 1 ; j < tmp->height - 1; j++){
       
@@ -87,9 +172,7 @@ void col_by_col_task(void *pic_args) {
     rgb.green = sum_green / BLUR_REGION_SIZE;
     rgb.blue = sum_blue / BLUR_REGION_SIZE;
 
-    // pthread_mutex_lock(lock);
     set_pixel(pic, i, j, &rgb);
-    // pthread_mutex_unlock(lock);
   }
 
   free(pic_args);
@@ -107,46 +190,13 @@ void col_by_col_blur(struct picture *pic) {
   tmp.width = pic->width;
   tmp.height = pic->height;  
 
-  // pthread_mutex_t lock;
-  // pthread_mutex_init (&lock, NULL);
-  
-  // struct pic_args pic_args = { &tmp, pic, 0, &lock };
-  // pic_args.tmp = &tmp;
-  // pic_args.pic = pic;
-
   // Iterates over the columns of the image
   for(int i = 1 ; i < tmp.width - 1; i++){
     struct pic_args *pic_args2 = malloc(sizeof (struct pic_args));
     pic_args2->tmp = &tmp;
     pic_args2->pic = pic;
     pic_args2->index = i;
-    // pic_args2->lock = &lock;
-    // struct pic_args pic_args = { &tmp, pic, i, &lock };
-    // pic_args.index = i;
-    // Create new thread 
     thpool_add_work(thpool, col_by_col_task, (void*)(uintptr_t) pic_args2);
-    // for(int j = 1 ; j < tmp.height - 1; j++){
-        
-    //   struct pixel rgb;  
-    //   int sum_red = 0;
-    //   int sum_green = 0;
-    //   int sum_blue = 0;
-    
-    //   for(int n = -1; n <= 1; n++){
-    //     for(int m = -1; m <= 1; m++){
-    //       rgb = get_pixel(&tmp, i+n, j+m);
-    //       sum_red += rgb.red;
-    //       sum_green += rgb.green;
-    //       sum_blue += rgb.blue;
-    //     }
-    //   }
-    
-    //   rgb.red = sum_red / BLUR_REGION_SIZE;
-    //   rgb.green = sum_green / BLUR_REGION_SIZE;
-    //   rgb.blue = sum_blue / BLUR_REGION_SIZE;
-    
-    //   set_pixel(pic, i, j, &rgb);
-    // }
   }
 
   thpool_wait(thpool);
@@ -159,7 +209,84 @@ void col_by_col_blur(struct picture *pic) {
 
   clock_gettime(CLOCK_MONOTONIC_RAW, &end);
   uint64_t delta_us = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000;
-  printf("1. Sequential Blur Elapsed Time: %ld\n", delta_us);
+  printf("3. Column-by-column Blur Elapsed Time: %ld\n\n", delta_us);
+}
+
+/* 6 - Pixel by pixel parallel blur */
+
+// Arugments for pixel_by_pixel_blur to be passed to individual threads
+struct pixel_pic_args {
+  struct picture *tmp;
+  struct picture *pic;
+  int i;
+  int j;
+};
+
+void pixel_by_pixel_task(void *pixel_pic_args) {
+  struct pixel_pic_args *temp_pic_args = (struct pixel_pic_args *) pixel_pic_args;
+  struct picture *tmp = temp_pic_args->tmp;
+  struct picture *pic = temp_pic_args->pic;
+  int i = temp_pic_args->i;
+  int j = temp_pic_args->j;
+
+  struct pixel rgb;  
+  int sum_red = 0;
+  int sum_green = 0;
+  int sum_blue = 0;
+
+  for(int n = -1; n <= 1; n++){
+    for(int m = -1; m <= 1; m++){
+      rgb = get_pixel(tmp, i+n, j+m);
+      sum_red += rgb.red;
+      sum_green += rgb.green;
+      sum_blue += rgb.blue;
+    }
+  }
+
+  rgb.red = sum_red / BLUR_REGION_SIZE;
+  rgb.green = sum_green / BLUR_REGION_SIZE;
+  rgb.blue = sum_blue / BLUR_REGION_SIZE;
+
+  set_pixel(pic, i, j, &rgb);
+
+  free(pixel_pic_args);
+}
+
+void pixel_by_pixel_blur(struct picture *pic) {
+  clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+
+  printf("Making threadpool with %d threads", NO_THREADS);
+  threadpool thpool = thpool_init(NO_THREADS);
+
+  // Split picture into a list of processes
+  struct picture tmp;
+  tmp.img = copy_image(pic->img);
+  tmp.width = pic->width;
+  tmp.height = pic->height;  
+
+  // Iterates over the columns of the image
+  for(int i = 1 ; i < tmp.width - 1; i++){
+    for(int j = 1 ; j < tmp.height - 1; j++){
+      struct pixel_pic_args *pic_args = malloc(sizeof (struct pixel_pic_args));
+      pic_args->tmp = &tmp;
+      pic_args->pic = pic;
+      pic_args->i = i;
+      pic_args->j = j;
+      thpool_add_work(thpool, pixel_by_pixel_task, (void*)(uintptr_t) pic_args);
+    }
+  }
+
+  thpool_wait(thpool);
+  puts("Killing threadpool");
+  thpool_destroy(thpool);
+
+  clear_picture(&tmp);
+
+  save_picture_to_file(pic, "blurtest/pixel_by_pixel.jpg");
+
+  clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+  uint64_t delta_us = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000;
+  printf("6. Pixel-by-pixel Blur Elapsed Time: %ld\n\n", delta_us);
 }
 
 // ---------- MAIN PROGRAM ---------- \\
@@ -173,20 +300,35 @@ void col_by_col_blur(struct picture *pic) {
     struct picture pic;
     init_picture_from_file(&pic, input_file);
 
+    struct picture threadless_pic;
+    copy_picture(&threadless_pic, &pic);
+    threadless_blur(&threadless_pic);
+
     struct picture sequential_pic;
     copy_picture(&sequential_pic, &pic);
     sequential_blur(&sequential_pic);
 
     struct picture row_by_row_pic;
     copy_picture(&row_by_row_pic, &pic);
-    col_by_col_blur(&row_by_row_pic);
+    row_by_row_blur(&row_by_row_pic);
+
+    struct picture col_by_col_pic;
+    copy_picture(&col_by_col_pic, &pic);
+    col_by_col_blur(&col_by_col_pic);
+
+    struct picture pixel_by_pixel_pic;
+    copy_picture(&pixel_by_pixel_pic, &pic);
+    pixel_by_pixel_blur(&pixel_by_pixel_pic);
 
 
 
 
     clear_picture(&pic);
+    clear_picture(&threadless_pic);
     clear_picture(&sequential_pic);
     clear_picture(&row_by_row_pic);
+    clear_picture(&col_by_col_pic);
+    clear_picture(&pixel_by_pixel_pic);
 
     //TODO: implement your blur optimisation experiments in this file
 
