@@ -9,6 +9,9 @@
 
 #include <unistd.h>
 
+void blur_task(void *pic) {
+  blur_picture((struct picture *) pic);
+}
 
 void task(void *arg){
   sleep(3);
@@ -17,15 +20,29 @@ void task(void *arg){
 }
 
 void sequential_blur(struct picture *pic) {
-  puts("Making threadpool with 1 threads");
-  threadpool thpool = thpool_init(1);
-  thpool_add_work(thpool, blur_picture, (void*)(uintptr_t) pic);
+  // puts("Making threadpool with 1 threads");
 
-  thpool_wait(thpool);
-  puts("Killing threadpool");
-  thpool_destroy(thpool);
+  // threadpool thpool = thpool_init(1);
+  // thpool_add_work(thpool, blur_task, (void*)(uintptr_t) pic);
 
-  save_picture_to_file(pic, "out/blurtest.jpg");
+  // thpool_wait(thpool);
+  // puts("Killing threadpool");
+  // thpool_destroy(thpool);
+
+  // save_picture_to_file(pic, "out/blurtest.jpg");
+
+    puts("Making threadpool with 4 threads");
+    threadpool thpool = thpool_init(8);
+
+    puts("Adding 40 tasks to threadpool");
+    int i;
+    for (i=0; i<40; i++){
+      thpool_add_work(thpool, task, (void*)(uintptr_t)i);
+    };
+
+    thpool_wait(thpool);
+    puts("Killing threadpool");
+    thpool_destroy(thpool);
 }
 
 // ---------- MAIN PROGRAM ---------- \\
