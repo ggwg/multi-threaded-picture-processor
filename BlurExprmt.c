@@ -49,19 +49,23 @@ void sequential_blur(struct picture *pic) {
   printf("1. Sequential Blur Elapsed Time: %ld\n", delta_us);
 }
 
-struct picContainer {
+struct pic_args {
   struct picture *tmp;
   struct picture *pic;
   int index;
+  // pthread_mutex_t *lock;
 };
 
 /* 3 - Column by column parallel blur */
 
-void col_by_col_task(void *picContainer) {
-  struct picContainer *tempPicContainer = (struct picContainer *) picContainer;
-  struct picture *tmp = tempPicContainer->tmp;
-  struct picture *pic = tempPicContainer->pic;
-  int i = tempPicContainer->index;
+void col_by_col_task(void *pic_args) {
+  struct pic_args *temp_pic_args = (struct pic_args *) pic_args;
+  struct picture *tmp = temp_pic_args->tmp;
+  struct picture *pic = temp_pic_args->pic;
+  int i = temp_pic_args->index;
+  // pthread_mutex_t *lock = temp_pic_args->lock;
+
+  printf("Started thread for index %d\n", i);
 
   for(int j = 1 ; j < tmp->height - 1; j++){
       
@@ -82,9 +86,13 @@ void col_by_col_task(void *picContainer) {
     rgb.red = sum_red / BLUR_REGION_SIZE;
     rgb.green = sum_green / BLUR_REGION_SIZE;
     rgb.blue = sum_blue / BLUR_REGION_SIZE;
-  
+
+    // pthread_mutex_lock(lock);
     set_pixel(pic, i, j, &rgb);
+    // pthread_mutex_unlock(lock);
   }
+
+  free(pic_args);
 }
 
 void col_by_col_blur(struct picture *pic) {
@@ -99,15 +107,24 @@ void col_by_col_blur(struct picture *pic) {
   tmp.width = pic->width;
   tmp.height = pic->height;  
 
-  struct picContainer picContainer;
-  picContainer.tmp = &tmp;
-  picContainer.pic = pic;
+  // pthread_mutex_t lock;
+  // pthread_mutex_init (&lock, NULL);
+  
+  // struct pic_args pic_args = { &tmp, pic, 0, &lock };
+  // pic_args.tmp = &tmp;
+  // pic_args.pic = pic;
 
   // Iterates over the columns of the image
   for(int i = 1 ; i < tmp.width - 1; i++){
-    picContainer.index = i;
+    struct pic_args *pic_args2 = malloc(sizeof (struct pic_args));
+    pic_args2->tmp = &tmp;
+    pic_args2->pic = pic;
+    pic_args2->index = i;
+    // pic_args2->lock = &lock;
+    // struct pic_args pic_args = { &tmp, pic, i, &lock };
+    // pic_args.index = i;
     // Create new thread 
-    thpool_add_work(thpool, col_by_col_task, (void*)(uintptr_t) &picContainer);
+    thpool_add_work(thpool, col_by_col_task, (void*)(uintptr_t) pic_args2);
     // for(int j = 1 ; j < tmp.height - 1; j++){
         
     //   struct pixel rgb;  
