@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
-#include <stdint.h> // remove later?
+#include <stdint.h>
 #include "Utils.h"
 #include "Picture.h"
 #include "PicProcess.h"
@@ -12,19 +12,12 @@
 // Blur pre-definied MACROS
 #define NO_RGB_COMPONENTS 3
 #define BLUR_REGION_SIZE 9
-
-// Number of threads for our process
-#define NO_THREADS 2
+#define NO_THREADS 4        // Number of threads for our process
 
 void copy_picture(struct picture *new_pic, struct picture* pic);
 
+// Global time variables used to store start and end times for a process.
 struct timespec start, end;
-
-// Example task called by a thread to demonstrate thread functionality.
-void task(void *arg){
-  sleep(1);
-	printf("Thread #%u working on %d\n", (int)pthread_self(), (int) arg);
-}
 
 /* 0 - Purely sequential blur without using any pthread functionality */
 
@@ -42,7 +35,6 @@ void threadless_blur(struct picture *pic) {
 
 /* 1 - Sequential blur using only 1 thread in the threadpool */
 
-
 void blur_task(void *pic) {
   blur_picture((struct picture *) pic);
 }
@@ -50,14 +42,13 @@ void blur_task(void *pic) {
 void sequential_blur(struct picture *pic) {
   clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
-  puts("Making threadpool with 1 threads");
+  printf("Making threadpool with 1 threads\n");
   threadpool thpool = thpool_init(1);
   thpool_add_work(thpool, blur_task, (void*)(uintptr_t) pic);
 
   thpool_wait(thpool);
   puts("Killing threadpool");
   thpool_destroy(thpool);
-  // blur_picture(pic);
 
   save_picture_to_file(pic, "blurtest/sequential.jpg");
 
@@ -80,8 +71,6 @@ void row_by_row_task(void *pic_args) {
   struct picture *tmp = temp_pic_args->tmp;
   struct picture *pic = temp_pic_args->pic;
   int j = temp_pic_args->index;
-
-  // printf("Started thread for index %d\n", i);
 
   for(int i = 1 ; i < tmp->width - 1; i++){
       
@@ -115,13 +104,12 @@ void row_by_row_blur(struct picture *pic) {
   printf("Making threadpool with %d threads\n", NO_THREADS);
   threadpool thpool = thpool_init(NO_THREADS);
 
-  // Split picture into a list of processes
   struct picture tmp;
   tmp.img = copy_image(pic->img);
   tmp.width = pic->width;
   tmp.height = pic->height;  
 
-  // Iterates over the columns of the image
+  // Iterates over the rows of the image
   for(int j = 1 ; j < tmp.height - 1; j++){
     struct pic_args *pic_args2 = malloc(sizeof (struct pic_args));
     pic_args2->tmp = &tmp;
@@ -150,8 +138,6 @@ void col_by_col_task(void *pic_args) {
   struct picture *tmp = temp_pic_args->tmp;
   struct picture *pic = temp_pic_args->pic;
   int i = temp_pic_args->index;
-
-  // printf("Started thread for index %d\n", i);
 
   for(int j = 1 ; j < tmp->height - 1; j++){
       
@@ -185,7 +171,6 @@ void col_by_col_blur(struct picture *pic) {
   printf("Making threadpool with %d threads\n", NO_THREADS);
   threadpool thpool = thpool_init(NO_THREADS);
 
-  // Split picture into a list of processes
   struct picture tmp;
   tmp.img = copy_image(pic->img);
   tmp.width = pic->width;
@@ -229,8 +214,6 @@ void half_sector_task(void *pic_args) {
   struct picture *pic = temp_pic_args->pic;
   int start_x_coord = temp_pic_args->start_x_coord;
   int end_x_coord = temp_pic_args->end_x_coord;
-  
-  // printf("THREAD STARTED. x: %d %d\n", start_x_coord, end_x_coord);
 
   for(int i = start_x_coord ; i < end_x_coord; i++){
     for(int j = 1 ; j < tmp->height - 1; j++){  
@@ -265,7 +248,6 @@ void half_sector_blur(struct picture *pic) {
   printf("Making threadpool with %d threads\n", NO_THREADS);
   threadpool thpool = thpool_init(NO_THREADS);
 
-  // Split picture into a list of processes
   struct picture tmp;
   tmp.img = copy_image(pic->img);
   tmp.width = pic->width;
@@ -324,8 +306,6 @@ void quarter_sector_task(void *pic_args) {
   int start_y_coord = temp_pic_args->start_y_coord;
   int end_y_coord = temp_pic_args->end_y_coord;
 
-  // printf("THREAD STARTED. x: %d %d | y: %d %d\n", start_x_coord, end_x_coord, start_y_coord, end_y_coord);
-
   for(int i = start_x_coord ; i < end_x_coord; i++){
     for(int j = start_y_coord ; j < end_y_coord; j++){  
       struct pixel rgb;  
@@ -350,7 +330,6 @@ void quarter_sector_task(void *pic_args) {
     }
   }
   free(pic_args);
-  // printf("THREAD ENDED\n");
 }
 
 void quarter_sector_blur(struct picture *pic) {
@@ -359,7 +338,6 @@ void quarter_sector_blur(struct picture *pic) {
   printf("Making threadpool with %d threads\n", NO_THREADS);
   threadpool thpool = thpool_init(NO_THREADS);
 
-  // Split picture into a list of processes
   struct picture tmp;
   tmp.img = copy_image(pic->img);
   tmp.width = pic->width;
@@ -469,7 +447,6 @@ void pixel_by_pixel_blur(struct picture *pic) {
   printf("Making threadpool with %d threads\n", NO_THREADS);
   threadpool thpool = thpool_init(NO_THREADS);
 
-  // Split picture into a list of processes
   struct picture tmp;
   tmp.img = copy_image(pic->img);
   tmp.width = pic->width;
@@ -511,6 +488,8 @@ void pixel_by_pixel_blur(struct picture *pic) {
     struct picture pic;
     init_picture_from_file(&pic, input_file);
 
+    /* Conduct tests for each of the 7 optimisation experiments
+       Each experiment prints out time elapsed to run the experiment */
     struct picture threadless_pic;
     copy_picture(&threadless_pic, &pic);
     threadless_blur(&threadless_pic);
@@ -550,6 +529,7 @@ void pixel_by_pixel_blur(struct picture *pic) {
     clear_picture(&pixel_by_pixel_pic);
   }
 
+// Copies pic to new_pic
 void copy_picture(struct picture *new_pic, struct picture* pic) {
   new_pic->img = copy_image(pic->img);
   new_pic->width = pic->width;
