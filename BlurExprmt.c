@@ -228,6 +228,8 @@ void half_sector_task(void *pic_args) {
   struct picture *pic = temp_pic_args->pic;
   int start_x_coord = temp_pic_args->start_x_coord;
   int end_x_coord = temp_pic_args->end_x_coord;
+  
+  printf("THREAD STARTED. x: %d %d\n", start_x_coord, end_x_coord);
 
   for(int i = start_x_coord ; i < end_x_coord; i++){
     for(int j = 1 ; j < tmp->height - 1; j++){  
@@ -321,6 +323,8 @@ void quarter_sector_task(void *pic_args) {
   int start_y_coord = temp_pic_args->start_y_coord;
   int end_y_coord = temp_pic_args->end_y_coord;
 
+  printf("THREAD STARTED. x: %d %d | y: %d %d\n", start_x_coord, end_x_coord, start_y_coord, end_y_coord);
+
   for(int i = start_x_coord ; i < end_x_coord; i++){
     for(int j = start_y_coord ; j < end_y_coord; j++){  
       struct pixel rgb;  
@@ -345,12 +349,13 @@ void quarter_sector_task(void *pic_args) {
     }
   }
   free(pic_args);
+  printf("THREAD ENDED\n");
 }
 
 void quarter_sector_blur(struct picture *pic) {
   clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
-  printf("Making threadpool with %d threads", NO_THREADS);
+  printf("Making threadpool with %d threads\n", NO_THREADS);
   threadpool thpool = thpool_init(NO_THREADS);
 
   // Split picture into a list of processes
