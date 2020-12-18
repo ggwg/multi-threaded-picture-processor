@@ -14,7 +14,7 @@
 #define BLUR_REGION_SIZE 9
 
 // Number of threads for our process
-#define NO_THREADS 4
+#define NO_THREADS 8
 
 void copy_picture(struct picture *new_pic, struct picture* pic);
 
@@ -24,10 +24,6 @@ struct timespec start, end;
 void task(void *arg){
   sleep(1);
 	printf("Thread #%u working on %d\n", (int)pthread_self(), (int) arg);
-}
-
-void blur_task(void *pic) {
-  blur_picture((struct picture *) pic);
 }
 
 /* 0 - Purely sequential blur without using any pthread functionality */
@@ -45,6 +41,11 @@ void threadless_blur(struct picture *pic) {
 } 
 
 /* 1 - Sequential blur using only 1 thread in the threadpool */
+
+
+void blur_task(void *pic) {
+  blur_picture((struct picture *) pic);
+}
 
 void sequential_blur(struct picture *pic) {
   clock_gettime(CLOCK_MONOTONIC_RAW, &start);
