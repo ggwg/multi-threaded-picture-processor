@@ -111,7 +111,7 @@ void row_by_row_task(void *pic_args) {
 void row_by_row_blur(struct picture *pic) {
   clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
-  puts("Making threadpool with 1 threads");
+  printf("Making threadpool with %d threads\n", NO_THREADS);
   threadpool thpool = thpool_init(NO_THREADS);
 
   // Split picture into a list of processes
@@ -181,7 +181,7 @@ void col_by_col_task(void *pic_args) {
 void col_by_col_blur(struct picture *pic) {
   clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
-  puts("Making threadpool with 1 threads");
+  printf("Making threadpool with %d threads\n", NO_THREADS);
   threadpool thpool = thpool_init(NO_THREADS);
 
   // Split picture into a list of processes
@@ -229,7 +229,7 @@ void half_sector_task(void *pic_args) {
   int start_x_coord = temp_pic_args->start_x_coord;
   int end_x_coord = temp_pic_args->end_x_coord;
   
-  printf("THREAD STARTED. x: %d %d\n", start_x_coord, end_x_coord);
+  // printf("THREAD STARTED. x: %d %d\n", start_x_coord, end_x_coord);
 
   for(int i = start_x_coord ; i < end_x_coord; i++){
     for(int j = 1 ; j < tmp->height - 1; j++){  
@@ -261,7 +261,7 @@ void half_sector_task(void *pic_args) {
 void half_sector_blur(struct picture *pic) {
   clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
-  puts("Making threadpool with 1 threads");
+  printf("Making threadpool with %d threads", NO_THREADS);
   threadpool thpool = thpool_init(NO_THREADS);
 
   // Split picture into a list of processes
@@ -323,7 +323,7 @@ void quarter_sector_task(void *pic_args) {
   int start_y_coord = temp_pic_args->start_y_coord;
   int end_y_coord = temp_pic_args->end_y_coord;
 
-  printf("THREAD STARTED. x: %d %d | y: %d %d\n", start_x_coord, end_x_coord, start_y_coord, end_y_coord);
+  // printf("THREAD STARTED. x: %d %d | y: %d %d\n", start_x_coord, end_x_coord, start_y_coord, end_y_coord);
 
   for(int i = start_x_coord ; i < end_x_coord; i++){
     for(int j = start_y_coord ; j < end_y_coord; j++){  
@@ -349,7 +349,7 @@ void quarter_sector_task(void *pic_args) {
     }
   }
   free(pic_args);
-  printf("THREAD ENDED\n");
+  // printf("THREAD ENDED\n");
 }
 
 void quarter_sector_blur(struct picture *pic) {
@@ -465,7 +465,7 @@ void pixel_by_pixel_task(void *pixel_pic_args) {
 void pixel_by_pixel_blur(struct picture *pic) {
   clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
-  printf("Making threadpool with %d threads", NO_THREADS);
+  printf("Making threadpool with %d threads\n", NO_THREADS);
   threadpool thpool = thpool_init(NO_THREADS);
 
   // Split picture into a list of processes
@@ -539,8 +539,6 @@ void pixel_by_pixel_blur(struct picture *pic) {
     pixel_by_pixel_blur(&pixel_by_pixel_pic);
 
 
-
-
     clear_picture(&pic);
     clear_picture(&threadless_pic);
     clear_picture(&sequential_pic);
@@ -549,32 +547,6 @@ void pixel_by_pixel_blur(struct picture *pic) {
     clear_picture(&half_sector_pic);
     clear_picture(&quarter_sector_pic);
     clear_picture(&pixel_by_pixel_pic);
-
-    //TODO: implement your blur optimisation experiments in this file
-
-    /*
-    TODO:
-    1) Row-by-row
-    2) Column-by-column
-    3) Sector-by-sector
-    4) pixel-by-pixel
-    */
-
-    // puts("Making threadpool with 4 threads");
-    // threadpool thpool = thpool_init(8);
-
-    // puts("Adding 40 tasks to threadpool");
-    // int i;
-    // for (i=0; i<40; i++){
-    //   thpool_add_work(thpool, task, (void*)(uintptr_t)i);
-    // };
-
-    // thpool_wait(thpool);
-    // puts("Killing threadpool");
-    // thpool_destroy(thpool);
-    
-    // return 0;
-
   }
 
 void copy_picture(struct picture *new_pic, struct picture* pic) {
