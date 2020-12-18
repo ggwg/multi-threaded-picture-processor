@@ -14,7 +14,7 @@
 #define BLUR_REGION_SIZE 9
 
 // Number of threads for our process
-#define NO_THREADS 8
+#define NO_THREADS 2
 
 void copy_picture(struct picture *new_pic, struct picture* pic);
 
@@ -262,7 +262,7 @@ void half_sector_task(void *pic_args) {
 void half_sector_blur(struct picture *pic) {
   clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
-  printf("Making threadpool with %d threads", NO_THREADS);
+  printf("Making threadpool with %d threads\n", NO_THREADS);
   threadpool thpool = thpool_init(NO_THREADS);
 
   // Split picture into a list of processes
@@ -291,7 +291,7 @@ void half_sector_blur(struct picture *pic) {
   thpool_add_work(thpool, half_sector_task, (void*)(uintptr_t) pic_args2);
 
   thpool_wait(thpool);
-  puts("Killing threadpool");
+  printf("Killing threadpool\n");
   thpool_destroy(thpool);
 
   clear_picture(&tmp);
